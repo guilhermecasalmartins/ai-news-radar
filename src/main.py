@@ -6,6 +6,7 @@ import logging
 import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -18,10 +19,15 @@ RAIZ = pathlib.Path(__file__).resolve().parent.parent
 FICHEIRO_DE_ESTADO = RAIZ / "state.json"
 FICHEIRO_DE_FONTES = RAIZ / "fontes.yaml"
 DIAS_DE_MEMORIA = 21
+FUSO_LOCAL = "Europe/Lisbon"
 
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
 log = logging.getLogger("radar")
+
+
+def hora_local() -> int:
+    return datetime.now(ZoneInfo(FUSO_LOCAL)).hour
 
 
 def carregar_estado() -> dict:
@@ -113,7 +119,14 @@ def compor_email(noticias: list[Noticia]) -> tuple[str, str, str]:
     return assunto, html, "\n".join(linhas)
 
 
-def executar(seco: bool, verboso: bool) -> int:
+def executar(seco: bool, verboso: bool, hora_alvo: int | None = None) -> int:
+    if hora_alvo is not None and hora_local() != hora_alvo:
+        log.info(
+            "sao %dh em %s e o alvo e %dh; nada a fazer",
+            hora_local(), FUSO_LOCAL, hora_alvo,
+        )
+        return 0
+
     cfg = yaml.safe_load(FICHEIRO_DE_FONTES.read_text())
     estado = carregar_estado()
     ja_enviadas = set(estado.get("enviadas", {}))
@@ -171,6 +184,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="AI News Radar")
     parser.add_argument("--seco", action="store_true", help="mostra o digest sem enviar nem guardar estado")
     parser.add_argument("--verboso", action="store_true", help="mostra o scoring de cada noticia")
+    parser.add_argument(
+        "--so-as",
+        type=int,
+        metavar="HORA",
+        help=f"so corre se em {FUSO_LOCAL} for esta hora; serve para compensar o horario de verao",
+    )
     argumentos = parser.parse_args()
 
     logging.basicConfig(
@@ -178,7 +197,11 @@ def main() -> int:
         format="%(levelname)-7s %(message)s",
         stream=sys.stderr,
     )
-    return executar(seco=argumentos.seco, verboso=argumentos.verboso)
+    return executar(
+        seco=argumentos.seco,
+        verboso=argumentos.verboso,
+        hora_alvo=argumentos.so_as,
+    )
 
 
 if __name__ == "__main__":

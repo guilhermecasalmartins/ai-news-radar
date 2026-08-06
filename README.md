@@ -71,11 +71,21 @@ variáveis antes de correr sem `--seco`.
 
 ## Horário
 
-O cron do GitHub corre em UTC: **07:30** e **17:30**.
+**Todos os dias às 9h de Lisboa**, durante todo o ano.
 
-Em Portugal isso dá 08:30/18:30 no horário de verão e 07:30/17:30 no de inverno.
-O GitHub também pode atrasar execuções agendadas em alturas de pico — normal, e
-irrelevante para um digest.
+O cron do GitHub só entende UTC e não conhece o horário de verão. Por isso são
+agendadas duas execuções — 08:00 e 09:00 UTC — e o `--so-as 9` deixa passar apenas
+aquela que calha às 9h em `Europe/Lisbon`. A outra sai em segundos sem fazer nada.
 
-Podes forçar uma execução a qualquer momento em `Actions` → `Digest` → `Run workflow`,
-com a opção de modo seco para veres o resultado sem receber notificação.
+|  | 08:00 UTC | 09:00 UTC |
+|---|---|---|
+| Inverno (WET) | 08h — ignora | **09h — envia** |
+| Verão (WEST) | **09h — envia** | 10h — ignora |
+
+O GitHub pode atrasar execuções agendadas em alturas de pico. Se um atraso grande
+fizesse as duas cair na mesma hora, o `state.json` impede o envio repetido: a
+segunda execução não encontra nada de novo e não envia nada.
+
+Podes forçar uma execução a qualquer momento em `Actions` → `Digest` → `Run workflow`.
+Nesse caso o filtro de hora não se aplica, e podes usar o modo seco para ver o
+resultado sem receberes email.
