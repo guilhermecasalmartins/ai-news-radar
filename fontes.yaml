@@ -1,0 +1,188 @@
+# peso: multiplicador de relevancia da fonte. 1.0 = normal, 2.0 = anuncio oficial.
+
+config:
+  max_por_digest: 6
+  score_minimo: 5.0
+  janela_horas: 26
+  max_candidatos_para_reranking_llm: 25
+
+rss:
+  fontes_primarias:
+    - nome: OpenAI
+      url: https://openai.com/news/rss.xml
+      peso: 2.0
+    - nome: Google AI
+      url: https://blog.google/technology/ai/rss/
+      peso: 1.8
+    - nome: Google DeepMind
+      url: https://deepmind.google/blog/rss.xml
+      peso: 1.8
+    - nome: Hugging Face
+      url: https://huggingface.co/blog/feed.xml
+      peso: 1.5
+    - nome: Replicate
+      url: https://replicate.com/blog/rss
+      peso: 1.3
+    - nome: Vercel
+      url: https://vercel.com/atom
+      peso: 1.2
+    - nome: Microsoft
+      url: https://blogs.microsoft.com/feed/
+      peso: 1.2
+    - nome: AWS Machine Learning
+      url: https://aws.amazon.com/blogs/machine-learning/feed/
+      peso: 1.2
+    - nome: Meta Engineering
+      url: https://engineering.fb.com/feed/
+      peso: 1.1
+
+  imprensa_tech:
+    - nome: TechCrunch AI
+      url: https://techcrunch.com/category/artificial-intelligence/feed/
+      peso: 1.2
+    - nome: The Verge AI
+      url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+      peso: 1.1
+    - nome: VentureBeat AI
+      url: https://venturebeat.com/category/ai/feed/
+      peso: 1.0
+    - nome: Ars Technica AI
+      url: https://arstechnica.com/ai/feed/
+      peso: 1.0
+    - nome: MIT Tech Review AI
+      url: https://www.technologyreview.com/topic/artificial-intelligence/feed
+      peso: 1.0
+
+  curadoria_e_analise:
+    - nome: TLDR AI
+      url: https://tldr.tech/api/rss/ai
+      peso: 1.4
+    - nome: Simon Willison
+      url: https://simonwillison.net/atom/everything/
+      peso: 1.3
+    - nome: Latent Space
+      url: https://www.latent.space/feed
+      peso: 1.1
+    - nome: Import AI
+      url: https://importai.substack.com/feed
+      peso: 1.0
+
+  automacao_e_nocode:
+    - nome: n8n
+      url: https://blog.n8n.io/rss/
+      peso: 1.3
+    - nome: Zapier
+      url: https://zapier.com/blog/feeds/latest/
+      peso: 1.0
+
+google_news_para_empresas_sem_rss:
+  ativo: true
+  peso: 1.0
+  pesquisas:
+    - nome: Anthropic
+      query: Anthropic Claude
+    - nome: Mistral
+      query: Mistral AI model
+    - nome: xAI
+      query: xAI Grok model
+
+hacker_news:
+  ativo: true
+  min_pontos: 100
+  peso: 1.2
+  termos:
+    - AI
+    - LLM
+    - GPT
+    - Claude
+    - Gemini
+    - open source model
+    - agents
+
+github_releases:
+  ativo: true
+  peso: 1.1
+  ignorar_patches: true
+  repos:
+    - n8n-io/n8n
+    - ollama/ollama
+    - langchain-ai/langchain
+    - comfyanonymous/ComfyUI
+    - vercel/ai
+    - openai/openai-python
+    - anthropics/anthropic-sdk-python
+    - browser-use/browser-use
+
+sinais_de_lancamento:
+  peso: 3.0
+  termos:
+    - launch
+    - launches
+    - launched
+    - introducing
+    - announces
+    - announcing
+    - unveils
+    - releases
+    - released
+    - now available
+    - general availability
+    - out now
+    - ships
+    - debuts
+    - rolls out
+    - rolling out
+    - apresenta
+    - lanca
+
+sinais_de_novidade:
+  peso: 1.5
+  termos:
+    - new model
+    - update
+    - upgrade
+    - version
+    - open source
+    - open-source
+    - open weights
+    - preview
+    - beta
+    - agent
+    - agents
+    - automation
+    - workflow
+    - integration
+    - api
+
+sinais_de_ruido:
+  peso: -2.5
+  termos:
+    - opinion
+    - op-ed
+    - why i
+    - how i
+    - rumor
+    - rumour
+    - reportedly
+    - best 10
+    - top 10
+    - guide to
+    - tutorial
+    - explained
+    - what is
+    - lawsuit
+    - sues
+    - stock
+    - shares
+    - is leaving
+    - are leaving
+    - departs
+    - departure
+    - steps down
+    - joins
+    - hires
+    - hiring
+    - raises
+    - funding round
+    - valuation
+    - ipo
