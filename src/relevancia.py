@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 
 from .modelo import Noticia
 
@@ -10,7 +11,28 @@ MINIMO_DE_TOKENS_PARTILHADOS = 2
 SCORE_MAXIMO = 10.0
 
 
-def _sao_a_mesma_historia(a: Noticia, b: Noticia) -> bool:
+COMPRIMENTO_DE_NOME_PROPRIO = 6
+FRACAO_MAXIMA_PARA_SER_RARO = 0.05
+FREQUENCIA_MINIMA_PARA_SER_RARO = 3
+
+
+def _tokens_raros(noticias: list[Noticia]) -> set[str]:
+    ocorrencias: Counter[str] = Counter()
+    for noticia in noticias:
+        ocorrencias.update(noticia.tokens)
+
+    limite = max(
+        FREQUENCIA_MINIMA_PARA_SER_RARO,
+        round(len(noticias) * FRACAO_MAXIMA_PARA_SER_RARO),
+    )
+    return {
+        token
+        for token, vezes in ocorrencias.items()
+        if vezes <= limite and len(token) >= COMPRIMENTO_DE_NOME_PROPRIO
+    }
+
+
+def _sao_a_mesma_historia(a: Noticia, b: Noticia, raros: set[str]) -> bool:
     ta, tb = a.tokens, b.tokens
     if not ta or not tb:
         return False
@@ -18,6 +40,9 @@ def _sao_a_mesma_historia(a: Noticia, b: Noticia) -> bool:
     partilhados = ta & tb
     if len(partilhados) < MINIMO_DE_TOKENS_PARTILHADOS:
         return False
+
+    if partilhados & raros:
+        return True
 
     jaccard = len(partilhados) / len(ta | tb)
     sobreposicao = len(partilhados) / min(len(ta), len(tb))
@@ -78,10 +103,11 @@ def remover_duplicados(noticias: list[Noticia]) -> list[Noticia]:
             por_url[n.identidade] = n
 
     candidatos = sorted(por_url.values(), key=lambda n: n.score, reverse=True)
+    raros = _tokens_raros(candidatos)
 
     mantidos: list[Noticia] = []
     for candidato in candidatos:
-        if any(_sao_a_mesma_historia(candidato, guardado) for guardado in mantidos):
+        if any(_sao_a_mesma_historia(candidato, guardado, raros) for guardado in mantidos):
             continue
         mantidos.append(candidato)
     return mantidos

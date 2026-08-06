@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
@@ -24,6 +25,19 @@ FUSO_LOCAL = "Europe/Lisbon"
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
 log = logging.getLogger("radar")
+
+
+def carregar_env_local() -> None:
+    ficheiro = RAIZ / ".env"
+    if not ficheiro.exists():
+        return
+
+    for linha in ficheiro.read_text().splitlines():
+        limpa = linha.strip()
+        if not limpa or limpa.startswith("#") or "=" not in limpa:
+            continue
+        chave, _, valor = limpa.partition("=")
+        os.environ.setdefault(chave.strip(), valor.strip().strip("'\""))
 
 
 def hora_local() -> int:
@@ -197,6 +211,7 @@ def main() -> int:
         format="%(levelname)-7s %(message)s",
         stream=sys.stderr,
     )
+    carregar_env_local()
     return executar(
         seco=argumentos.seco,
         verboso=argumentos.verboso,

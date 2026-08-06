@@ -14,9 +14,11 @@ log = logging.getLogger(__name__)
 TEMPO_LIMITE = 60
 
 MODELOS_POR_OMISSAO = {
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-flash-latest",
     "groq": "llama-3.3-70b-versatile",
 }
+
+SEGREDO_NO_URL = re.compile(r"(key=)[^&\s]+")
 
 VARIANTES_ESPECIALIZADAS = (
     "vision", "embedding", "aqa", "tts", "image", "audio", "live",
@@ -83,9 +85,13 @@ def _chamar_groq(prompt: str, chave: str, modelo: str) -> str:
     return resposta.json()["choices"][0]["message"]["content"]
 
 
-def _modelo_nao_existe(erro: requests.RequestException) -> bool:
+def sem_segredos(erro: object) -> str:
+    return SEGREDO_NO_URL.sub(r"\1***", str(erro))
+
+
+def _modelo_inutilizavel(erro: requests.RequestException) -> bool:
     resposta = getattr(erro, "response", None)
-    return resposta is not None and resposta.status_code in (400, 404)
+    return resposta is not None and resposta.status_code in (400, 404, 429)
 
 
 def _gerar(fornecedor: str, prompt: str, chave: str, modelo: str) -> str:
@@ -95,15 +101,26 @@ def _gerar(fornecedor: str, prompt: str, chave: str, modelo: str) -> str:
     try:
         return _chamar_gemini(prompt, chave, modelo)
     except requests.RequestException as erro:
-        if not _modelo_nao_existe(erro):
+        if not _modelo_inutilizavel(erro):
             raise
+        motivo = getattr(erro.response, "status_code", "?")
 
-    alternativo = escolher_modelo_gemini(_modelos_gemini_disponiveis(chave))
-    if not alternativo:
-        raise RuntimeError(f"modelo '{modelo}' indisponivel e sem alternativa")
+    alternativos = [
+        m for m in escolher_modelos_gemini(_modelos_gemini_disponiveis(chave)) if m != modelo
+    ]
+    if not alternativos:
+        raise RuntimeError(f"modelo '{modelo}' devolveu {motivo} e nao ha alternativa")
 
-    log.info("modelo '%s' indisponivel; a usar '%s'", modelo, alternativo)
-    return _chamar_gemini(prompt, chave, alternativo)
+    for alternativo in alternativos[:3]:
+        log.info("modelo '%s' devolveu %s; a tentar '%s'", modelo, motivo, alternativo)
+        try:
+            return _chamar_gemini(prompt, chave, alternativo)
+        except requests.RequestException as erro:
+            if not _modelo_inutilizavel(erro):
+                raise
+            log.warning("'%s' tambem falhou: %s", alternativo, sem_segredos(erro))
+
+    raise RuntimeError("nenhum modelo Gemini disponivel aceitou o pedido")
 
 
 def _modelos_gemini_disponiveis(chave: str) -> list[str]:
@@ -116,7 +133,7 @@ def _modelos_gemini_disponiveis(chave: str) -> list[str]:
         resposta.raise_for_status()
         modelos = resposta.json().get("models", [])
     except (requests.RequestException, ValueError) as erro:
-        log.warning("nao consegui listar modelos: %s", erro)
+        log.warning("nao consegui listar modelos: %s", sem_segredos(erro))
         return []
 
     return [
@@ -131,19 +148,22 @@ def _versao(nome: str) -> float:
     return float(encontrado.group(1)) if encontrado else 0.0
 
 
-def escolher_modelo_gemini(disponiveis: list[str]) -> str:
+def escolher_modelos_gemini(disponiveis: list[str]) -> list[str]:
     utilizaveis = [
         m for m in disponiveis if not any(v in m.lower() for v in VARIANTES_ESPECIALIZADAS)
     ]
     rapidos = [m for m in utilizaveis if "flash" in m] or utilizaveis
-    if not rapidos:
-        return ""
 
     return sorted(
         rapidos,
         key=lambda m: (_versao(m), "preview" not in m, "lite" not in m, -len(m)),
         reverse=True,
-    )[0]
+    )
+
+
+def escolher_modelo_gemini(disponiveis: list[str]) -> str:
+    escolhidos = escolher_modelos_gemini(disponiveis)
+    return escolhidos[0] if escolhidos else ""
 
 
 def esta_configurado() -> bool:
@@ -171,7 +191,7 @@ def refinar(noticias: list[Noticia]) -> list[Noticia]:
     try:
         bruto = _gerar(fornecedor, prompt, chave, modelo)
     except (requests.RequestException, RuntimeError) as erro:
-        log.warning("LLM indisponivel (%s); a usar so heuristicas", erro)
+        log.warning("LLM indisponivel (%s); a usar so heuristicas", sem_segredos(erro))
         return noticias
     except (KeyError, IndexError) as erro:
         log.warning("resposta inesperada do LLM (%s); a usar so heuristicas", erro)
