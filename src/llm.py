@@ -18,6 +18,11 @@ MODELOS_POR_OMISSAO = {
     "groq": "llama-3.3-70b-versatile",
 }
 
+VARIANTES_ESPECIALIZADAS = (
+    "vision", "embedding", "aqa", "tts", "image", "audio", "live",
+    "robotics", "learnlm", "gemma", "veo", "imagen",
+)
+
 INSTRUCOES = """Es um editor de uma newsletter portuguesa sobre AI, especializada em PRODUTOS E LANCAMENTOS.
 
 Recebes uma lista numerada de noticias. Para cada uma, avalia:
@@ -78,6 +83,69 @@ def _chamar_groq(prompt: str, chave: str, modelo: str) -> str:
     return resposta.json()["choices"][0]["message"]["content"]
 
 
+def _modelo_nao_existe(erro: requests.RequestException) -> bool:
+    resposta = getattr(erro, "response", None)
+    return resposta is not None and resposta.status_code in (400, 404)
+
+
+def _gerar(fornecedor: str, prompt: str, chave: str, modelo: str) -> str:
+    if fornecedor != "gemini":
+        return _chamar_groq(prompt, chave, modelo)
+
+    try:
+        return _chamar_gemini(prompt, chave, modelo)
+    except requests.RequestException as erro:
+        if not _modelo_nao_existe(erro):
+            raise
+
+    alternativo = escolher_modelo_gemini(_modelos_gemini_disponiveis(chave))
+    if not alternativo:
+        raise RuntimeError(f"modelo '{modelo}' indisponivel e sem alternativa")
+
+    log.info("modelo '%s' indisponivel; a usar '%s'", modelo, alternativo)
+    return _chamar_gemini(prompt, chave, alternativo)
+
+
+def _modelos_gemini_disponiveis(chave: str) -> list[str]:
+    try:
+        resposta = requests.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            params={"key": chave, "pageSize": 200},
+            timeout=30,
+        )
+        resposta.raise_for_status()
+        modelos = resposta.json().get("models", [])
+    except (requests.RequestException, ValueError) as erro:
+        log.warning("nao consegui listar modelos: %s", erro)
+        return []
+
+    return [
+        m["name"].split("/")[-1]
+        for m in modelos
+        if "generateContent" in m.get("supportedGenerationMethods", [])
+    ]
+
+
+def _versao(nome: str) -> float:
+    encontrado = re.search(r"gemini-(\d+(?:\.\d+)?)", nome)
+    return float(encontrado.group(1)) if encontrado else 0.0
+
+
+def escolher_modelo_gemini(disponiveis: list[str]) -> str:
+    utilizaveis = [
+        m for m in disponiveis if not any(v in m.lower() for v in VARIANTES_ESPECIALIZADAS)
+    ]
+    rapidos = [m for m in utilizaveis if "flash" in m] or utilizaveis
+    if not rapidos:
+        return ""
+
+    return sorted(
+        rapidos,
+        key=lambda m: (_versao(m), "preview" not in m, "lite" not in m, -len(m)),
+        reverse=True,
+    )[0]
+
+
 def esta_configurado() -> bool:
     return bool(os.environ.get("LLM_API_KEY") and os.environ.get("LLM_PROVIDER"))
 
@@ -101,9 +169,8 @@ def refinar(noticias: list[Noticia]) -> list[Noticia]:
     prompt = f"{INSTRUCOES}\n\nNOTICIAS:\n{listagem}"
 
     try:
-        chamada = _chamar_gemini if fornecedor == "gemini" else _chamar_groq
-        bruto = chamada(prompt, chave, modelo)
-    except requests.RequestException as erro:
+        bruto = _gerar(fornecedor, prompt, chave, modelo)
+    except (requests.RequestException, RuntimeError) as erro:
         log.warning("LLM indisponivel (%s); a usar so heuristicas", erro)
         return noticias
     except (KeyError, IndexError) as erro:
