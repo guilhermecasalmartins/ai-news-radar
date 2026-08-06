@@ -1,12 +1,12 @@
 # AI News Radar
 
-Digest diário de **lançamentos de produtos de AI e automação**, entregue no Telegram.
+Digest diário de **lançamentos de produtos de AI e automação**, entregue por email.
 Corre no GitHub Actions, sem servidor e sem custos.
 
 ## Como funciona
 
 ```
-Recolha  ->  Deduplicação  ->  Scoring  ->  Refinamento LLM  ->  Telegram
+Recolha  ->  Deduplicação  ->  Scoring  ->  Refinamento LLM  ->  Email
 ```
 
 1. **Recolha** — 20 feeds RSS, Hacker News, releases de GitHub e pesquisas no Google News
@@ -18,7 +18,7 @@ Recolha  ->  Deduplicação  ->  Scoring  ->  Refinamento LLM  ->  Telegram
    financiamento, tutoriais).
 4. **Refinamento LLM** — os melhores candidatos são reavaliados e resumidos numa
    frase em português. **Opcional**: sem chave de API, o resto funciona na mesma.
-5. **Telegram** — envio formatado, no máximo 6 notícias por digest.
+5. **Email** — HTML formatado via SMTP do Gmail, no máximo 6 notícias por digest.
 
 Nada é enviado duas vezes: o `state.json` guarda o que já saiu nos últimos 21 dias.
 
@@ -30,8 +30,9 @@ Nada é enviado duas vezes: o `state.json` guarda o que já saiu nos últimos 21
 
 | Secret | Onde obter |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) → `/newbot` |
-| `TELEGRAM_CHAT_ID` | [@userinfobot](https://t.me/userinfobot) → `/start` |
+| `SMTP_UTILIZADOR` | A tua conta Gmail, ex. `nome@gmail.com` |
+| `SMTP_PASSWORD` | [App Password](https://myaccount.google.com/apppasswords) de 16 caracteres |
+| `EMAIL_DESTINO` | Endereço que recebe o digest |
 | `LLM_API_KEY` | [Google AI Studio](https://aistudio.google.com) ou [Groq](https://console.groq.com) |
 
 ### Variables opcionais
@@ -41,8 +42,12 @@ Nada é enviado duas vezes: o `state.json` guarda o que já saiu nos últimos 21
 | `LLM_PROVIDER` | `gemini` | `gemini` ou `groq` |
 | `LLM_MODEL` | `gemini-2.0-flash` | Só se quiseres outro modelo |
 
-> Antes do primeiro envio, abre uma conversa com o teu bot e manda `/start`.
-> O Telegram bloqueia bots que tentem escrever a quem nunca os contactou.
+> `SMTP_PASSWORD` **não é a password da tua conta Google** — tem de ser uma App
+> Password. Exige 2-Step Verification activa. Se puseres a password normal, o
+> Gmail devolve `535 Authentication failed`.
+
+> O `EMAIL_DESTINO` é um Secret, e não configuração no `fontes.yaml`, porque este
+> repositório é público — um endereço em texto simples seria recolhido por bots.
 
 ## Ajustar sem tocar no código
 

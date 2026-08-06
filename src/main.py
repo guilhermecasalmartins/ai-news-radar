@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 
-from . import llm, telegram
+from . import correio, llm
 from .modelo import Noticia
 from .recolha import recolher_tudo
 from .relevancia import selecionar
@@ -51,22 +51,66 @@ def guardar_estado(estado: dict, novas: list[Noticia]) -> None:
     )
 
 
-def compor_mensagem(noticias: list[Noticia]) -> str:
+TIPO_DE_LETRA = (
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+)
+
+
+def _bloco_html(posicao: int, noticia: Noticia) -> str:
+    titulo = correio.escapar(noticia.titulo)
+    fonte = correio.escapar(noticia.fonte)
+    resumo = (
+        f'<div style="font-size:15px;color:#444;line-height:1.5;margin-top:6px;">'
+        f"{correio.escapar(noticia.resumo)}</div>"
+        if noticia.resumo
+        else ""
+    )
+    return (
+        '<div style="margin-bottom:30px;">'
+        f'<div style="font-size:12px;color:#8a8a8a;letter-spacing:.04em;text-transform:uppercase;">'
+        f"{posicao:02d} &nbsp;·&nbsp; {fonte} &nbsp;·&nbsp; {noticia.score:.1f}/10</div>"
+        f'<a href="{correio.escapar(noticia.url)}" '
+        'style="display:block;margin-top:5px;font-size:18px;font-weight:600;'
+        'color:#111;text-decoration:none;line-height:1.35;">'
+        f"{titulo}</a>{resumo}</div>"
+    )
+
+
+def compor_email(noticias: list[Noticia]) -> tuple[str, str, str]:
     agora = datetime.now(timezone.utc)
+    data = f"{agora.day} {MESES[agora.month - 1]}"
     periodo = "manha" if agora.hour < 13 else "tarde"
-    cabecalho = f"<b>AI Radar</b> · {agora.day} {MESES[agora.month - 1]}, {periodo}"
 
-    blocos = [cabecalho]
+    palavra = "lancamento" if len(noticias) == 1 else "lancamentos"
+    assunto = f"AI Radar · {data} · {len(noticias)} {palavra}"
+
+    corpo = "".join(_bloco_html(i, n) for i, n in enumerate(noticias, start=1))
+    html = (
+        '<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        '<body style="margin:0;background:#f6f6f6;">'
+        f'<div style="max-width:620px;margin:0 auto;background:#fff;padding:28px 22px;'
+        f'font-family:{TIPO_DE_LETRA};">'
+        '<div style="border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:26px;">'
+        '<span style="font-size:21px;font-weight:700;color:#111;">AI Radar</span>'
+        f'<span style="font-size:14px;color:#8a8a8a;"> &nbsp;·&nbsp; {data}, {periodo}</span></div>'
+        f"{corpo}"
+        '<div style="border-top:1px solid #e5e5e5;padding-top:14px;font-size:12px;color:#9a9a9a;">'
+        "Curadoria automatica de lancamentos de AI e automacao. "
+        "Para receber mais ou menos noticias, ajusta o score_minimo no fontes.yaml."
+        "</div></div></body></html>"
+    )
+
+    linhas = [f"AI RADAR · {data}, {periodo}", ""]
     for posicao, noticia in enumerate(noticias, start=1):
-        titulo = telegram.escapar(noticia.titulo)
-        fonte = telegram.escapar(noticia.fonte)
-        linhas = [f'{posicao}. <a href="{noticia.url}"><b>{titulo}</b></a>']
+        linhas.append(f"{posicao:02d}. {noticia.titulo}")
         if noticia.resumo:
-            linhas.append(telegram.escapar(noticia.resumo))
-        linhas.append(f"<i>{fonte} · {noticia.score:.1f}/10</i>")
-        blocos.append("\n".join(linhas))
+            linhas.append(f"    {noticia.resumo}")
+        linhas.append(f"    {noticia.fonte} · {noticia.score:.1f}/10")
+        linhas.append(f"    {noticia.url}")
+        linhas.append("")
 
-    return "\n\n".join(blocos)
+    return assunto, html, "\n".join(linhas)
 
 
 def executar(seco: bool, verboso: bool) -> int:
@@ -100,7 +144,7 @@ def executar(seco: bool, verboso: bool) -> int:
         log.info("nada acima do score minimo apos refinamento")
         return 0
 
-    mensagem = compor_mensagem(finais)
+    assunto, corpo_html, corpo_texto = compor_email(finais)
 
     if verboso:
         for n in finais:
@@ -110,11 +154,12 @@ def executar(seco: bool, verboso: bool) -> int:
     if seco:
         print("\n" + "=" * 70)
         print("MODO SECO - nada foi enviado nem guardado")
+        print(f"Assunto: {assunto}")
         print("=" * 70)
-        print(mensagem)
+        print(corpo_texto)
         return 0
 
-    if not telegram.enviar(mensagem):
+    if not correio.enviar(assunto, corpo_html, corpo_texto):
         return 1
 
     guardar_estado(estado, finais)
