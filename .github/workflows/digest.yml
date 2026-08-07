@@ -2,8 +2,8 @@ name: Digest
 
 on:
   schedule:
-    - cron: '0 8 * * *'
-    - cron: '0 9 * * *'
+    - cron: '17 8 * * *'
+    - cron: '17 9 * * *'
   workflow_dispatch:
     inputs:
       seco:
@@ -43,7 +43,7 @@ jobs:
         run: >-
           python -m src.main --verboso
           ${{ inputs.seco && '--seco' || '' }}
-          ${{ github.event_name == 'schedule' && '--so-as 9' || '' }}
+          ${{ github.event_name == 'schedule' && '--entre 9 11' || '' }}
 
       - name: Guardar o que ja foi enviado
         if: ${{ !inputs.seco }}

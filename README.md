@@ -73,18 +73,25 @@ variáveis antes de correr sem `--seco`.
 
 **Todos os dias às 9h de Lisboa**, durante todo o ano.
 
-O cron do GitHub só entende UTC e não conhece o horário de verão. Por isso são
-agendadas duas execuções — 08:00 e 09:00 UTC — e o `--so-as 9` deixa passar apenas
-aquela que calha às 9h em `Europe/Lisbon`. A outra sai em segundos sem fazer nada.
+O cron do GitHub só entende UTC e não conhece o horário de verão. São agendadas
+duas execuções — 08:17 e 09:17 UTC — e o `--entre 9 11` deixa passar as que caiam
+entre as 9h e as 11h em `Europe/Lisbon`. As outras saem em segundos sem fazer nada.
 
-|  | 08:00 UTC | 09:00 UTC |
+|  | 08:17 UTC | 09:17 UTC |
 |---|---|---|
-| Inverno (WET) | 08h — ignora | **09h — envia** |
-| Verão (WEST) | **09h — envia** | 10h — ignora |
+| Inverno (WET) | 08h17 — ignora | **09h17 — envia** |
+| Verão (WEST) | **09h17 — envia** | 10h17 — na janela |
 
-O GitHub pode atrasar execuções agendadas em alturas de pico. Se um atraso grande
-fizesse as duas cair na mesma hora, o `state.json` impede o envio repetido: a
-segunda execução não encontra nada de novo e não envia nada.
+Duas decisões aqui não são arbitrárias:
+
+**O minuto `:17`.** Execuções agendadas são atrasadas ou descartadas em períodos de
+carga alta, e o início de cada hora é o pior momento possível — é quando quase toda
+a gente agenda. Um minuto ímpar e pouco óbvio evita a fila.
+
+**A janela de 3 horas em vez de uma hora exacta.** Um alvo pontual falha sempre que
+o GitHub se atrasa. Com uma janela, um digest atrasado continua a ser entregue.
+O `state.json` impede o envio repetido: a segunda execução não encontra nada de
+novo e não envia nada.
 
 Podes forçar uma execução a qualquer momento em `Actions` → `Digest` → `Run workflow`.
 Nesse caso o filtro de hora não se aplica, e podes usar o modo seco para ver o

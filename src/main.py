@@ -133,11 +133,11 @@ def compor_email(noticias: list[Noticia]) -> tuple[str, str, str]:
     return assunto, html, "\n".join(linhas)
 
 
-def executar(seco: bool, verboso: bool, hora_alvo: int | None = None) -> int:
-    if hora_alvo is not None and hora_local() != hora_alvo:
+def executar(seco: bool, verboso: bool, janela: tuple[int, int] | None = None) -> int:
+    if janela is not None and not janela[0] <= hora_local() <= janela[1]:
         log.info(
-            "sao %dh em %s e o alvo e %dh; nada a fazer",
-            hora_local(), FUSO_LOCAL, hora_alvo,
+            "sao %dh em %s e a janela de entrega e %dh-%dh; nada a fazer",
+            hora_local(), FUSO_LOCAL, janela[0], janela[1],
         )
         return 0
 
@@ -199,10 +199,11 @@ def main() -> int:
     parser.add_argument("--seco", action="store_true", help="mostra o digest sem enviar nem guardar estado")
     parser.add_argument("--verboso", action="store_true", help="mostra o scoring de cada noticia")
     parser.add_argument(
-        "--so-as",
+        "--entre",
         type=int,
-        metavar="HORA",
-        help=f"so corre se em {FUSO_LOCAL} for esta hora; serve para compensar o horario de verao",
+        nargs=2,
+        metavar=("INICIO", "FIM"),
+        help=f"so corre dentro desta janela de horas em {FUSO_LOCAL}; tolera atrasos do cron",
     )
     argumentos = parser.parse_args()
 
@@ -215,7 +216,7 @@ def main() -> int:
     return executar(
         seco=argumentos.seco,
         verboso=argumentos.verboso,
-        hora_alvo=argumentos.so_as,
+        janela=tuple(argumentos.entre) if argumentos.entre else None,
     )
 
 
